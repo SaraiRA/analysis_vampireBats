@@ -170,6 +170,17 @@ read dummy
 
 
 
+ if [ ! -e .map.done ]; then   for f in $ADAPTER/*_noAdapCollapsed_noDupPrinSeq.fastq.gz;   do     bn=$(basename $f _noAdapCollapsed_noDupPrinSeq.fastq.gz)     echo "(bwa mem -M $BATGENOME $f | samtools sort -n -O bam - | samtools fixmate -r -p -m - - | samtools sort - | samtools markdup -r - ${bn}_MapBat_collapsed.markdup.bam ; samtools view -b -f 4 $NOHOST/${bn}_MapBat_collapsed.markdup.bam > $NOHOST/${bn}_UNMap_Bat_collapsed.markdup.bam; bamToFastq -i $NOHOST/${bn}_UNMap_Bat_collapsed.markdup.bam -fq $NOHOST/${bn}_UNMap_Bat_collapsed.markdup.fastq; gzip $NOHOST/${bn}_UNMap_Bat_collapsed.markdup.fastq )";   done | xsbatch -c 1 --mem-per-cpu=10G -J line -R --max-array-jobs=10 --;   touch .map.done; fi
+ 1057  history | grep "bwa mem -M $BATGENOME"
+
+
+
+
+
+
+
+
+
 
 
 
