@@ -143,38 +143,69 @@ echo "Map to reference genome"
 # -p: no error if existing 
 mkdir -p $NOHOST && cd $NOHOST
 
+### MAPPING ####
 ### COLLAPSED READS 
 
 #INPUT: *_noAdapCollapsed_noDupPrinSeq
 
-## LINE
+cd $NOHOST
 if [ ! -e .map.done ]; then
 	## Run BWA mem to map
 	# Discard any reads that are orphans of a pair, so keep only valid pairs
-  	for f in $ADAPTER/*_noAdap.collapsed.gz
-  		do
-    		bn=$(basename $f _noAdap.collapsed.gz)
-    		# Run bwa mem and then sort then sort the bam by coordinates.
+	for f in $ADAPTER/*_noAdapCollapsed_noDupPrinSeq.fastq.gz  
+		do     
+		bn=$(basename $f _noAdapCollapsed_noDupPrinSeq.fastq.gz)
+		# Run bwa mem and then sort then sort the bam by coordinates.
 		# M: mark shorter split hits as secondary
-    		echo "(bwa mem -M $BATGENOME <(cat $f $ADAPTER/LINE/${bn}_primer_noAdap.collapsed.truncated.gz) | samtools sort -n -O bam - | samtools fixmate -r -p -m - - | samtools sort - | samtools markdup -r - ${bn}.Wolf_noHets_collapsed.markdup.bam )"
-  	done | xsbatch -c 1 --mem-per-cpu=10G -J line -R --max-array-jobs=10 --
-  touch .map.done
+		echo "(bwa mem -M $BATGENOME $f | samtools view -b -| samtools sort - -o ${bn}_MapBat_collapsed.markdup.bam ; samtools view -b -f 4 $NOHOST/${bn}_MapBat_collapsed.markdup.bam > $NOHOST/${bn}_UNMap_Bat_collapsed.markdup.bam)" 
+	done | xsbatch -c 1 --mem-per-cpu=10G -J map -R --max-array-jobs=10 --   
+	touch .map.done
 fi
+
+### UNCOLLAPSED READS 
+
+if [ ! -e .UNcollapsed.map.done ]; then   
+	## Run BWA mem to map
+	# Discard any reads that are orphans of a pair, so keep only valid pairs
+	for f in $ADAPTER/*_primer_noAdapUncollapsed_noDupPrinSeq_1.fastq 
+		do     
+		bn=$(basename $f _primer_noAdapUncollapsed_noDupPrinSeq_1.fastq)     
+		# Run bwa mem and then sort then sort the bam by coordinates.
+		# M: mark shorter split hits as secondary
+		echo "(bwa mem -M $BATGENOME $f $ADAPTER/${bn}_primer_noAdapUncollapsed_noDupPrinSeq_2.fastq | samtools view -b -| samtools sort - -o ${bn}_MapBat_uncollapsed.markdup.bam ; samtools view -b -f 4 $NOHOST/${bn}_MapBat_uncollapsed.markdup.bam > $NOHOST/${bn}_UNMap_Bat_uncollapsed.markdup.bam)" 
+	done | xsbatch -c 1 --mem-per-cpu=10G -J Unmap -R --max-array-jobs=10 --   
+	touch .UNcollapsed.map.done
+fi
+
 
 #Wait until the jobs above finish 
 echo "Waiting"
 read dummy
 
+### CONVERTING BAM TO FASTQ ###
 
+### COLLAPSED READS 
+cd $NOHOST
+if [ ! -e .recoverfq.done ]; then for f in $NOHOST/*_UNMap_Bat_collapsed.markdup.bam; do bn=$(basename $f _UNMap_Bat_collapsed.markdup.bam); echo "(bedtools bamtofastq -i $f -fq $NOHOST/${bn}_UNMap_Bat_collapsed.markdup.fastq; gzip $NOHOST/${bn}_UNMap_Bat_collapsed.markdup.fastq )"; done | xsbatch -c 1 --mem-per-cpu=5G -J fq -R --max-array-jobs=10 --; touch .recoverfq.done; fi
 
+### UNCOLLAPSED READS 
+cd $NOHOST
+if [ ! -e .ucollap.recoverfq.done ]; then for f in $NOHOST/*_UNMap_Bat_uncollapsed.markdup.bam; do bn=$(basename $f _UNMap_Bat_uncollapsed.markdup.bam); echo "(bamToFastq -i $f -fq $NOHOST/${bn}_UNMap_Bat_uncollapsed.markdup.fastq; gzip $NOHOST/${bn}_UNMap_Bat_uncollapsed.markdup.fastq )"; done | xsbatch -c 1 --mem-per-cpu=5G -J uncollpased_fq -R --max-array-jobs=10 --; touch .uncollap.recoverfq.done; fi
 
+#Wait until the jobs above finish 
+echo "Waiting"
+read dummy
 
+###MERGING#### 
+cd $NOHOST
+#Merging files of the same lane 
+#Dont run with the rest of the pipeline
 
- if [ ! -e .map.done ]; then   for f in $ADAPTER/*_noAdapCollapsed_noDupPrinSeq.fastq.gz;   do     bn=$(basename $f _noAdapCollapsed_noDupPrinSeq.fastq.gz)     echo "(bwa mem -M $BATGENOME $f | samtools sort -n -O bam - | samtools fixmate -r -p -m - - | samtools sort - | samtools markdup -r - ${bn}_MapBat_collapsed.markdup.bam ; samtools view -b -f 4 $NOHOST/${bn}_MapBat_collapsed.markdup.bam > $NOHOST/${bn}_UNMap_Bat_collapsed.markdup.bam; bamToFastq -i $NOHOST/${bn}_UNMap_Bat_collapsed.markdup.bam -fq $NOHOST/${bn}_UNMap_Bat_collapsed.markdup.fastq; gzip $NOHOST/${bn}_UNMap_Bat_collapsed.markdup.fastq )";   done | xsbatch -c 1 --mem-per-cpu=10G -J line -R --max-array-jobs=10 --;   touch .map.done; fi
- 1057  history | grep "bwa mem -M $BATGENOME"
+echo "Merge file of the same line"
 
-
-
+for f in $(ls *_UNMap_Bat_collapsed.markdup.fastq.gz)
+do bn=$(basename $f _UNMap_Bat_collapsed.markdup.fastq.gz); cat $f ${bn}_UNMap_Bat_uncollapsed.markdup.fastq > ${bn}_UNMap_BatME.markdup.fastq
+done
 
 
 
