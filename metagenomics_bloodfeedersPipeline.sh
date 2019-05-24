@@ -3,12 +3,24 @@
 # CALL MODULES
 #module avail 
 module load AdapterRemoval/v2.2.0 
-module load perl/v5.24.0
+module load perl/v5.28.1
 module load prinseq/v0.20.4 
 module load bwa/v0.7.15
 module load htslib/v1.6
-module load samtools/v1.6 
+#module load samtools/v1.6 
 module load bedtools/v20170719
+module load jellyfish/v1.1.11 
+
+module load kraken/v2.0.7 
+module load python/v2.7.12
+module load bowtie2/v2.2.9
+module load muscle/v3.8.31
+module load blast+/v2.2.28
+module load samtools/v0.1.19
+module load RAxML/v8.2.11
+module load diamond/v0.8.31
+module load MetaPhlAn/v2.6.0
+
 
 ## Define the variables
 PROJECT=/groups/hologenomics/sarai/data/batProject
@@ -20,6 +32,7 @@ NOHOSTCOPY=$PROJECT/noHost_copy
 MAP=$PROJECT/mapping
 PREY=$PROJECT/preys
 UNPREY=$PROJECT/unpreys
+KRAKEN=$PROJECT/kraken2
 
 # references
 DIREF=/groups/hologenomics/data/genomes
@@ -31,6 +44,7 @@ DONKEYGENOME=${DIREF}/donkey/GCF_001305755.1_ASM130575v1_genomic.fasta
 HORSEGENOME=${DIREF}/horse/equCab2.masked.fasta
 CHICKENGENOME=${DIREF}/chicken/galGal5.fasta
 RHINOGENOME=${DIREF}/white_rhino/cerSim1.fasta
+KRAKEN2DB="/groups/hologenomics/data/db/Kraken2-standard-DB/"
 
 
 ############### MERGING ###################
@@ -278,7 +292,6 @@ if [ ! -e .map.sheep ]; then
   	done | xsbatch -c 1 --mem-per-cpu=10G -J map -R --max-array-jobs=10 --
   touch .map.sheep
 fi
-###################################################################################################################here
 
 ### DONKEY ###
 PREYDONKEY=$PREY/donkey
@@ -287,12 +300,12 @@ cd $PREYDONKEY
 if [ ! -e .map.donkey ]; then
 	## Run BWA mem to map
 	# Discard any reads that are orphans of a pair, so keep only valid pairs
-  	for f in $NOHOST/*_primer_UNMap_BatME.markdup.fastq.gz 
+  	for f in $NOHOSTCOPY/*_primer_UNMap_BatME.markdup.fastq.gz 
   		do
     		bn=$(basename $f _primer_noAdap.collapsed.gz)
     		# Run bwa mem and then sort then sort the bam by coordinates.
 		# M: mark shorter split hits as secondary
-    		echo "(bwa mem -M $DONKEYGENOME $f | samtools sort -n -O bam - | samtools fixmate -r -p -m - - | samtools sort - | samtools markdup -r - ${bn}_MAPsheep_UNMAPbatME.markdup.bam )"
+    		echo "(bwa mem -M $DONKEYGENOME $f | samtools sort -n -O bam - | samtools fixmate -r -p -m - - | samtools sort - | samtools markdup -r - ${bn}_MAPdonkey_UNMAPbatME.markdup.bam )"
   	done | xsbatch -c 1 --mem-per-cpu=10G -J mapDonkey -R --max-array-jobs=10 --
   touch .map.donkey
 fi
@@ -309,11 +322,11 @@ if [ ! -e .map.horse ]; then
     		bn=$(basename $f _primer_noAdap.collapsed.gz)
     		# Run bwa mem and then sort then sort the bam by coordinates.
 		# M: mark shorter split hits as secondary
-    		echo "(bwa mem -M $HORSEGENOME $f | samtools sort -n -O bam - | samtools fixmate -r -p -m - - | samtools sort - | samtools markdup -r - ${bn}_MAPsheep_UNMAPbatME.markdup.bam )"
-  	done | xsbatch -c 1 --mem-per-cpu=10G -J mapHorse -d 13338288_2 -R --max-array-jobs=10 --
+    		echo "(bwa mem -M $HORSEGENOME $f | samtools sort -n -O bam - | samtools fixmate -r -p -m - - | samtools sort - | samtools markdup -r - ${bn}_MAPhorse_UNMAPbatME.markdup.bam )"
+  	done | xsbatch -c 1 --mem-per-cpu=10G -J mapHorse -R --max-array-jobs=10 --
   touch .map.horse
 fi
-
+###################################################################################################################here
 ### CHICKEN ###
 PREYCHICKEN=$PREY/chicken
 mkdir -p $PREYCHICKEN
@@ -326,8 +339,8 @@ if [ ! -e .map.chicken ]; then
     		bn=$(basename $f _primer_noAdap.collapsed.gz)
     		# Run bwa mem and then sort then sort the bam by coordinates.
 		# M: mark shorter split hits as secondary
-    		echo "(bwa mem -M $CHICKENGENOME $f | samtools sort -n -O bam - | samtools fixmate -r -p -m - - | samtools sort - | samtools markdup -r - ${bn}_MAPsheep_UNMAPbatME.markdup.bam )"
-  	done | xsbatch -c 1 --mem-per-cpu=10G -J mapChicken -d 13338238 -R --max-array-jobs=10 --
+    		echo "(bwa mem -M $CHICKENGENOME $f | samtools sort -n -O bam - | samtools fixmate -r -p -m - - | samtools sort - | samtools markdup -r - ${bn}_MAPchicken_UNMAPbatME.markdup.bam )"
+  	done | xsbatch -c 1 --mem-per-cpu=10G -J mapChicken -R --max-array-jobs=10 --
   touch .map.chicken
 fi
 
@@ -338,13 +351,13 @@ cd $PREYRHINO
 if [ ! -e .map.rhino ]; then
 	## Run BWA mem to map
 	# Discard any reads that are orphans of a pair, so keep only valid pairs
-  	for f in $NOHOST/*_primer_UNMap_BatME.markdup.fastq.gz 
+  	for f in $NOHOSTCOPY/*_primer_UNMap_BatME.markdup.fastq.gz 
   		do
     		bn=$(basename $f _primer_noAdap.collapsed.gz)
     		# Run bwa mem and then sort then sort the bam by coordinates.
 		# M: mark shorter split hits as secondary
-    		echo "(bwa mem -M $RHINOGENOME $f | samtools sort -n -O bam - | samtools fixmate -r -p -m - - | samtools sort - | samtools markdup -r - ${bn}_MAPsheep_UNMAPbatME.markdup.bam )"
-  	done | xsbatch -c 1 --mem-per-cpu=10G -J mapRhino -d 13338251 -R --max-array-jobs=10 --
+    		echo "(bwa mem -M $RHINOGENOME $f | samtools sort -n -O bam - | samtools fixmate -r -p -m - - | samtools sort - | samtools markdup -r - ${bn}_MAPrhino_UNMAPbatME.markdup.bam )"
+  	done | xsbatch -c 1 --mem-per-cpu=10G -J mapRhino -R --max-array-jobs=10 --
   touch .map.rhino
 fi
 
@@ -370,14 +383,108 @@ if [ ! -e .map.done ]; then
   touch .map.done
 fi
 
+################ IDENTITY UNMAPPED READS  #################
+#Mapping the rest of the reads from host, to every prey by pipe
+
+##### KRAKEN #####
+echo "Running kraken"
+# -p: no error if existing 
+mkdir -p $KRAKEN2 && cd $KRAKEN2
+
+
+if [ ! -e .kraken ]; then
+	## Run BWA mem to map
+	# Discard any reads that are orphans of a pair, so keep only valid pairs
+  	for f in $UNPREY/*_primer_UNMap_BatME.markdup.fastq.gz_Map_UNMapBatCowPigSheepDonkeyHorseChickenRhino.markdup.fastq.gz
+  		do
+    		bn=$(basename $f _primer_UNMap_BatME.markdup.fastq.gz_Map_UNMapBatCowPigSheepDonkeyHorseChickenRhino.markdup.fastq.gz)
+    		# Run kraken, report, mpa report
+    		echo "(gunzip $f; kraken2 --db $KRAKEN2DB --threads 8 --preload  --output $KRAKEN2/${bn}.kraken $UNPREY/${bn}_primer_UNMap_BatME.markdup.fastq.gz_Map_UNMapBatCowPigSheepDonkeyHorseChickenRhino.markdup.fastq; kraken2-report --db $KRAKEN2DB  $KRAKEN2/${bn}.kraken  >  $KRAKEN2/${bn}.kraken.report; gzip  $UNPREY/${bn}_primer_UNMap_BatME.markdup.fastq.gz_Map_UNMapBatCowPigSheepDonkeyHorseChickenRhino.markdup.fastq; kraken2-mpa-report --db $KRAKEN2DB  $KRAKEN2/${bn}.kraken > $KRAKEN2/${bn}.kraken.mpa.report)"
+  	done | xsbatch -c 1 --mem-per-cpu=30G -J kraken -R --max-array-jobs=10 --
+  touch .kraken
+fi
+
+
+
+##### KRAKEN #####
+KRAKEN2V2=$PROJECT/kraken2_v2
+echo "Running kraken"
+# -p: no error if existing 
+mkdir -p $KRAKEN2V2 && cd $KRAKEN2V2
+
+
+if [ ! -e .kraken ]; then
+	## Run BWA mem to map
+	# Discard any reads that are orphans of a pair, so keep only valid pairs
+  	for f in $UNPREY/*_primer_UNMap_BatME.markdup.fastq.gz_Map_UNMapBatCowPigSheepDonkeyHorseChickenRhino.markdup.fastq.gz
+  		do
+    		bn=$(basename $f _primer_UNMap_BatME.markdup.fastq.gz_Map_UNMapBatCowPigSheepDonkeyHorseChickenRhino.markdup.fastq.gz)
+    		# Run kraken, report, mpa report
+    		echo "(gunzip $f; kraken2 --db $KRAKEN2DB --threads 8 --preload --unclassified-out $KRAKEN2V2/${bn}.unclassified.kraken --output $KRAKEN2V2/${bn}.kraken $UNPREY/${bn}_primer_UNMap_BatME.markdup.fastq.gz_Map_UNMapBatCowPigSheepDonkeyHorseChickenRhino.markdup.fastq; kraken2-report --db $KRAKEN2DB  $KRAKEN2V2/${bn}.kraken  >  $KRAKEN2V2/${bn}.kraken.report; gzip  $UNPREY/${bn}_primer_UNMap_BatME.markdup.fastq.gz_Map_UNMapBatCowPigSheepDonkeyHorseChickenRhino.markdup.fastq; kraken2-mpa-report --db $KRAKEN2DB  $KRAKEN2V2/${bn}.kraken > $KRAKEN2V2/${bn}.kraken.mpa.report)"
+  	done | xsbatch -c 1 --mem-per-cpu=40G -J kraken -R --max-array-jobs=10 --
+  touch .kraken
+fi
+
+
+##### KRAKEN #####
+# -minimum-base-quality 35
+
+KRAKEN2V3=$PROJECT/kraken2_k35
+echo "Running kraken"
+# -p: no error if existing 
+mkdir -p $KRAKEN2V3 && cd $KRAKEN2V3
+
+
+if [ ! -e .kraken ]; then
+	## Run BWA mem to map
+	# Discard any reads that are orphans of a pair, so keep only valid pairs
+  	for f in $UNPREY/*_primer_UNMap_BatME.markdup.fastq.gz_Map_UNMapBatCowPigSheepDonkeyHorseChickenRhino.markdup.fastq.gz
+  		do
+    		bn=$(basename $f _primer_UNMap_BatME.markdup.fastq.gz_Map_UNMapBatCowPigSheepDonkeyHorseChickenRhino.markdup.fastq.gz)
+    		# Run kraken, report, mpa report
+    		echo "(gunzip $f; kraken2 --db $KRAKEN2DB --threads 8 --preload --minimum-base-quality 35 --unclassified-out $KRAKEN2V3/${bn}.unclassified.kraken.fastq --output $KRAKEN2V3/${bn}.kraken $UNPREY/${bn}_primer_UNMap_BatME.markdup.fastq.gz_Map_UNMapBatCowPigSheepDonkeyHorseChickenRhino.markdup.fastq; kraken2-report --db $KRAKEN2DB  $KRAKEN2V3/${bn}.kraken  >  $KRAKEN2V3/${bn}.kraken.report; gzip  $UNPREY/${bn}_primer_UNMap_BatME.markdup.fastq.gz_Map_UNMapBatCowPigSheepDonkeyHorseChickenRhino.markdup.fastq; kraken2-mpa-report --db $KRAKEN2DB  $KRAKEN2V3/${bn}.kraken > $KRAKEN2V3/${bn}.kraken.mpa.report)"
+  	done | xsbatch -c 1 --mem-per-cpu=40G -J kraken -R --max-array-jobs=10 --
+  touch .kraken
+fi
+
+#Run
+
+#################FASTQC#######################3
+module load java/v11.0.1-jdk
+module load fastqc/v0.11.8
+
+FASTQC=$PROJECT/fastqc
+mkdir -p $FASTQC && cd $FASTQC
+
+
+if [ ! -e .fastqc ]; then
+	## Run BWA mem to map
+	# Discard any reads that are orphans of a pair, so keep only valid pairs
+  	for f in $UNPREY/*_primer_UNMap_BatME.markdup.fastq.gz_Map_UNMapBatCowPigSheepDonkeyHorseChickenRhino.markdup.fastq.gz
+  		do
+    		bn=$(basename $f _primer_UNMap_BatME.markdup.fastq.gz_Map_UNMapBatCowPigSheepDonkeyHorseChickenRhino.markdup.fastq.gz)
+    		# Run kraken, report, mpa report
+    		echo "(gunzip $f; kraken2 --db $KRAKEN2DB --threads 8 --preload  --output $KRAKEN2/${bn}.kraken $UNPREY/${bn}_primer_UNMap_BatME.markdup.fastq.gz_Map_UNMapBatCowPigSheepDonkeyHorseChickenRhino.markdup.fastq; kraken2-report --db $KRAKEN2DB  $KRAKEN2/${bn}.kraken  >  $KRAKEN2/${bn}.kraken.report; gzip  $UNPREY/${bn}_primer_UNMap_BatME.markdup.fastq.gz_Map_UNMapBatCowPigSheepDonkeyHorseChickenRhino.markdup.fastq; kraken2-mpa-report --db $KRAKEN2DB  $KRAKEN2/${bn}.kraken > $KRAKEN2/${bn}.kraken.mpa.report)"
+  	done | xsbatch -c 1 --mem-per-cpu=5G -J kraken -R --max-array-jobs=10 --
+  touch .fastqc
+fi
 
 
 
 
 
 
+##### KRONA #####
+#Visualization of kraken results
+# Run in personal computer
 
-
+# to run the krona plots
+for file in *.kraken
+do
+base=`basename $file .kraken`
+echo "ktImportTaxonomy -q 2 -t 3 ${file} -o ${base}_kraken_krona.html"
+#echo ${file}
+done
 
 
 
