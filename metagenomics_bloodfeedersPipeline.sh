@@ -469,11 +469,6 @@ if [ ! -e .fastqc ]; then
   touch .fastqc
 fi
 
-
-
-
-
-
 ##### KRONA #####
 #Visualization of kraken results
 # Run in personal computer
