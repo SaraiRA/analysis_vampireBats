@@ -10,6 +10,8 @@ module load htslib/v1.6
 #module load samtools/v1.6 
 module load bedtools/v20170719
 module load jellyfish/v1.1.11 
+module load java/v11.0.1-jdk
+module load fastqc/v0.11.8a
 
 module load kraken/v2.0.7 
 module load python/v2.7.12
@@ -57,6 +59,12 @@ echo "Merge file of the same line"
 for f in $(ls *_L006_R1_001.fastq.gz)
 do bn=$(basename $f _L006_R1_001.fastq.gz); cat "$bn"_L006_R2_0*.fastq.gz > "$bn"_L006_R2_ME.fastq.gz
 done
+
+
+############# QUALITY ####################
+# fastqc for quality comparision after clean the data
+mkdir fastqs_fastqc
+fastqc *
 
 
 ##### ADAPTERS #####
@@ -469,6 +477,11 @@ if [ ! -e .fastqc ]; then
   touch .fastqc
 fi
 
+
+
+
+
+
 ##### KRONA #####
 #Visualization of kraken results
 # Run in personal computer
@@ -480,11 +493,6 @@ base=`basename $file .kraken`
 echo "ktImportTaxonomy -q 2 -t 3 ${file} -o ${base}_kraken_krona.html"
 #echo ${file}
 done
-
-
-
-
-
 
 
 
