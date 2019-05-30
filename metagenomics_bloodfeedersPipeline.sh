@@ -369,6 +369,23 @@ if [ ! -e .map.rhino ]; then
   touch .map.rhino
 fi
 
+################ GENOME ASSEMBLY OF TAPIR  #################
+#Mapping the rest of the reads from host, to every prey by pipe
+
+echo "Assembly tapir genome"
+# -p: no error if existing 
+mkdir -p $TAPIRGENOME && cd $TAPIRGENOME
+
+samtools merge tapir_8samples.bam $PREY/rhino/TOG_KLEY_116_CAGCTA_primer_UNMap_BatME.markdup.fastq.gz_MAPrhino_UNMAPbatME.markdup.bam $PREY/rhino/TOG_KLEY_121_GACGAC_primer_UNMap_BatME.markdup.fastq.gz_MAPrhino_UNMAPbatME.markdup.bam $PREY/rhino/TOG_KLEY_25_TGTGAC_primer_UNMap_BatME.markdup.fastq.gz_MAPrhino_UNMAPbatME.markdup.bam   $PREY/rhino/TOG_KLEY_29_GACACT_primer_UNMap_BatME.markdup.fastq.gz_MAPrhino_UNMAPbatME.markdup.bam   $PREY/rhino/TOG_KLEY_90_ACGCAT_primer_UNMap_BatME.markdup.fastq.gz_MAPrhino_UNMAPbatME.markdup.bam   $PREY/rhino/TOG_KLEY_94_ACATAC_primer_UNMap_BatME.markdup.fastq.gz_MAPrhino_UNMAPbatME.markdup.bam   $PREY/rhino/   $PREY/rhino/   
+
+# create samtools index
+samtools index tapir_8samples.bam
+
+# get total number of bases covered at MIN_COVERAGE_DEPTH or higher
+MIN_COVERAGE_DEPTH=3
+samtools mpileup tapir_8samples.bam | awk -v X="${MIN_COVERAGE_DEPTH}" '$4>=X' | wc -l
+
+
 
 ################ RECOVERING UNMAPPED READS  #################
 #Mapping the rest of the reads from host, to every prey by pipe
