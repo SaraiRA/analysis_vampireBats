@@ -7,11 +7,13 @@ module load perl/v5.28.1
 module load prinseq/v0.20.4 
 module load bwa/v0.7.15
 module load htslib/v1.6
-#module load samtools/v1.6 
+module load samtools/v1.6 
 module load bedtools/v20170719
 module load jellyfish/v1.1.11 
 module load java/v11.0.1-jdk
 module load fastqc/v0.11.8a
+module load bcftools/v1.4
+module load vcftools/v0.1.14
 
 module load kraken/v2.0.7 
 module load python/v2.7.12
@@ -35,6 +37,7 @@ MAP=$PROJECT/mapping
 PREY=$PROJECT/preys
 UNPREY=$PROJECT/unpreys
 KRAKEN=$PROJECT/kraken2
+TAPIRGENOME=$PROJECT/tapir_genome
 
 # references
 DIREF=/groups/hologenomics/data/genomes
@@ -334,7 +337,7 @@ if [ ! -e .map.horse ]; then
   	done | xsbatch -c 1 --mem-per-cpu=10G -J mapHorse -R --max-array-jobs=10 --
   touch .map.horse
 fi
-###################################################################################################################here
+
 ### CHICKEN ###
 PREYCHICKEN=$PREY/chicken
 mkdir -p $PREYCHICKEN
@@ -348,7 +351,7 @@ if [ ! -e .map.chicken ]; then
     		# Run bwa mem and then sort then sort the bam by coordinates.
 		# M: mark shorter split hits as secondary
     		echo "(bwa mem -M $CHICKENGENOME $f | samtools sort -n -O bam - | samtools fixmate -r -p -m - - | samtools sort - | samtools markdup -r - ${bn}_MAPchicken_UNMAPbatME.markdup.bam )"
-  	done | xsbatch -c 1 --mem-per-cpu=10G -J mapChicken -R --max-array-jobs=10 --
+  	done | xsbatch -c 1 --mem-per-cpu=3G -J mapChicken -R --max-array-jobs=10 --
   touch .map.chicken
 fi
 
@@ -365,7 +368,7 @@ if [ ! -e .map.rhino ]; then
     		# Run bwa mem and then sort then sort the bam by coordinates.
 		# M: mark shorter split hits as secondary
     		echo "(bwa mem -M $RHINOGENOME $f | samtools sort -n -O bam - | samtools fixmate -r -p -m - - | samtools sort - | samtools markdup -r - ${bn}_MAPrhino_UNMAPbatME.markdup.bam )"
-  	done | xsbatch -c 1 --mem-per-cpu=10G -J mapRhino -R --max-array-jobs=10 --
+  	done | xsbatch -c 1 --mem-per-cpu=1G -J mapRhino -R --max-array-jobs=10 --
   touch .map.rhino
 fi
 
@@ -376,16 +379,14 @@ echo "Assembly tapir genome"
 # -p: no error if existing 
 mkdir -p $TAPIRGENOME && cd $TAPIRGENOME
 
-samtools merge tapir_8samples.bam $PREY/rhino/TOG_KLEY_116_CAGCTA_primer_UNMap_BatME.markdup.fastq.gz_MAPrhino_UNMAPbatME.markdup.bam $PREY/rhino/TOG_KLEY_121_GACGAC_primer_UNMap_BatME.markdup.fastq.gz_MAPrhino_UNMAPbatME.markdup.bam $PREY/rhino/TOG_KLEY_25_TGTGAC_primer_UNMap_BatME.markdup.fastq.gz_MAPrhino_UNMAPbatME.markdup.bam   $PREY/rhino/TOG_KLEY_29_GACACT_primer_UNMap_BatME.markdup.fastq.gz_MAPrhino_UNMAPbatME.markdup.bam   $PREY/rhino/TOG_KLEY_90_ACGCAT_primer_UNMap_BatME.markdup.fastq.gz_MAPrhino_UNMAPbatME.markdup.bam   $PREY/rhino/TOG_KLEY_94_ACATAC_primer_UNMap_BatME.markdup.fastq.gz_MAPrhino_UNMAPbatME.markdup.bam   $PREY/rhino/   $PREY/rhino/   
+#merge with samtools 
+samtools merge tapir_8samples.bam $PREY/rhino/TOG_KLEY_116_CAGCTA_primer_UNMap_BatME.markdup.fastq.gz_MAPrhino_UNMAPbatME.markdup.bam $PREY/rhino/TOG_KLEY_121_GACGAC_primer_UNMap_BatME.markdup.fastq.gz_MAPrhino_UNMAPbatME.markdup.bam $PREY/rhino/TOG_KLEY_25_TGTGAC_primer_UNMap_BatME.markdup.fastq.gz_MAPrhino_UNMAPbatME.markdup.bam   $PREY/rhino/TOG_KLEY_29_GACACT_primer_UNMap_BatME.markdup.fastq.gz_MAPrhino_UNMAPbatME.markdup.bam   $PREY/rhino/TOG_KLEY_90_ACGCAT_primer_UNMap_BatME.markdup.fastq.gz_MAPrhino_UNMAPbatME.markdup.bam   $PREY/rhino/TOG_KLEY_94_ACATAC_primer_UNMap_BatME.markdup.fastq.gz_MAPrhino_UNMAPbatME.markdup.bam   $PREY/rhino/TOG_KLEY_54_TAGATG_primer_UNMap_BatME.markdup.fastq.gz_MAPrhino_UNMAPbatME.markdup.bam   $PREY/rhino/TOG_KLEY_54_TAGATG_primer_UNMap_BatME.markdup.fastq.gz_MAPrhino_UNMAPbatME.markdup.bam   
 
 # create samtools index
 samtools index tapir_8samples.bam
 
-# get total number of bases covered at MIN_COVERAGE_DEPTH or higher
-MIN_COVERAGE_DEPTH=3
-samtools mpileup tapir_8samples.bam | awk -v X="${MIN_COVERAGE_DEPTH}" '$4>=X' | wc -l
-
-
+#Consensus sequences 
+samtools mpileup -uf cerSim1 tapir_8samples.bam | bcftools view -cg - | bcftools/vcfutils.pl vcf2fq > consensus_tapir_8samples.bam.fasta
 
 ################ RECOVERING UNMAPPED READS  #################
 #Mapping the rest of the reads from host, to every prey by pipe
@@ -472,7 +473,31 @@ if [ ! -e .kraken ]; then
   touch .kraken
 fi
 
-#Run
+
+##### KRAKEN #####
+# -minimum-base-quality 35
+# generate report 
+
+KRAKEN2V3R=$PROJECT/kraken2_k35Report
+echo "Running kraken"
+# -p: no error if existing 
+mkdir -p $KRAKEN2V3R && cd $KRAKEN2V3R
+
+
+if [ ! -e .kraken ]; then
+	## Run BWA mem to map
+	# Discard any reads that are orphans of a pair, so keep only valid pairs
+  	for f in $UNPREY/*_primer_UNMap_BatME.markdup.fastq.gz_Map_UNMapBatCowPigSheepDonkeyHorseChickenRhino.markdup.fastq.gz
+  		do
+    		bn=$(basename $f _primer_UNMap_BatME.markdup.fastq.gz_Map_UNMapBatCowPigSheepDonkeyHorseChickenRhino.markdup.fastq.gz)
+    		# Run kraken, report, mpa report
+    		echo "(gunzip $f; kraken2 --db $KRAKEN2DB --threads 8 --preload --minimum-base-quality 35 --unclassified-out $KRAKEN2V3R/${bn}.unclassified.kraken.fastq --report $KRAKEN2V3R/${bn}.report.kraken --output $KRAKEN2V3R/${bn}.kraken $UNPREY/${bn}_primer_UNMap_BatME.markdup.fastq.gz_Map_UNMapBatCowPigSheepDonkeyHorseChickenRhino.markdup.fastq; gzip  $UNPREY/${bn}_primer_UNMap_BatME.markdup.fastq.gz_Map_UNMapBatCowPigSheepDonkeyHorseChickenRhino.markdup.fastq)"
+  	done | xsbatch -c 1 --mem-per-cpu=30G -J kraken -R --max-array-jobs=10 --
+  touch .kraken
+fi
+
+#Check to have report kraken 
+kraken2 --report test.report --db $KRAKEN2DB --threads 8 --preload --minimum-base-quality 35 --output test.kraken /groups/hologenomics/sarai/data/batProject/unpreys/TOG_KLEY_121_GACGAC_primer_UNMap_BatME.markdup.fastq.gz_Map_UNMapBatCowPigSheepDonkeyHorseChickenRhino.markdup.fastq
 
 #################FASTQC#######################3
 module load java/v11.0.1-jdk
@@ -510,8 +535,5 @@ base=`basename $file .kraken`
 echo "ktImportTaxonomy -q 2 -t 3 ${file} -o ${base}_kraken_krona.html"
 #echo ${file}
 done
-
-
-
 
 
