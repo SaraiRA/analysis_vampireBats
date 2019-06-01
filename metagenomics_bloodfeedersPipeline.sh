@@ -266,7 +266,7 @@ if [ ! -e .map.cow ]; then
     		# Run bwa mem and then sort then sort the bam by coordinates.
 		# M: mark shorter split hits as secondary
     		echo "(bwa mem -M $COWGENOME $f | samtools sort -n -O bam - | samtools fixmate -r -p -m - - | samtools sort - | samtools markdup -r - ${bn}_MAPcow_UNMAPbatME.markdup.bam )"
-  	done | xsbatch -c 1 --mem-per-cpu=10G -J map -R --max-array-jobs=10 --
+  	done | xsbatch -c 1 --mem-per-cpu=10G -J mapCow -R --max-array-jobs=10 --
   touch .map.cow
 fi
 
@@ -283,7 +283,7 @@ if [ ! -e .map.pig ]; then
     		# Run bwa mem and then sort then sort the bam by coordinates.
 		# M: mark shorter split hits as secondary
     		echo "(bwa mem -M $PIGGENOME $f | samtools sort -n -O bam - | samtools fixmate -r -p -m - - | samtools sort - | samtools markdup -r - ${bn}_MAPpig_UNMAPbatME.markdup.bam )"
-  	done | xsbatch -c 1 --mem-per-cpu=10G -J map -R --max-array-jobs=10 --
+  	done | xsbatch -c 1 --mem-per-cpu=10G -J mapPig -R --max-array-jobs=10 --
   touch .map.pig
 fi
 
@@ -300,7 +300,7 @@ if [ ! -e .map.sheep ]; then
     		# Run bwa mem and then sort then sort the bam by coordinates.
 		# M: mark shorter split hits as secondary
     		echo "(bwa mem -M $SHEEPGENOME $f | samtools sort -n -O bam - | samtools fixmate -r -p -m - - | samtools sort - | samtools markdup -r - ${bn}_MAPsheep_UNMAPbatME.markdup.bam )"
-  	done | xsbatch -c 1 --mem-per-cpu=10G -J map -R --max-array-jobs=10 --
+  	done | xsbatch -c 1 --mem-per-cpu=10G -J mapSheep -R --max-array-jobs=10 --
   touch .map.sheep
 fi
 
@@ -351,7 +351,7 @@ if [ ! -e .map.chicken ]; then
     		# Run bwa mem and then sort then sort the bam by coordinates.
 		# M: mark shorter split hits as secondary
     		echo "(bwa mem -M $CHICKENGENOME $f | samtools sort -n -O bam - | samtools fixmate -r -p -m - - | samtools sort - | samtools markdup -r - ${bn}_MAPchicken_UNMAPbatME.markdup.bam )"
-  	done | xsbatch -c 1 --mem-per-cpu=3G -J mapChicken -R --max-array-jobs=10 --
+  	done | xsbatch -c 1 --mem-per-cpu=10G -J mapChicken -R --max-array-jobs=10 --
   touch .map.chicken
 fi
 
@@ -368,7 +368,7 @@ if [ ! -e .map.rhino ]; then
     		# Run bwa mem and then sort then sort the bam by coordinates.
 		# M: mark shorter split hits as secondary
     		echo "(bwa mem -M $RHINOGENOME $f | samtools sort -n -O bam - | samtools fixmate -r -p -m - - | samtools sort - | samtools markdup -r - ${bn}_MAPrhino_UNMAPbatME.markdup.bam )"
-  	done | xsbatch -c 1 --mem-per-cpu=1G -J mapRhino -R --max-array-jobs=10 --
+  	done | xsbatch -c 1 --mem-per-cpu=10G -J mapRhino -R --max-array-jobs=10 --
   touch .map.rhino
 fi
 
@@ -388,23 +388,25 @@ samtools index tapir_8samples.bam
 #Consensus sequences 
 samtools mpileup -uf cerSim1 tapir_8samples.bam | bcftools view -cg - | bcftools/vcfutils.pl vcf2fq > consensus_tapir_8samples.bam.fasta
 
+
+samtools mpileup -ABuf cerSim1.fasta tapir_8samples.bam  | bcftools call -cOz --pval-threshold 0.99 > mapped.vcf.gz
+tabix mapped.vcf.gz 
+cat reference.nt | bcftools consensus mapped.vcf.gz > mapped.fastq
+
 ################ RECOVERING UNMAPPED READS  #################
 #Mapping the rest of the reads from host, to every prey by pipe
 
 echo "Recovering unmapped reads"
 # -p: no error if existing 
-mkdir -p $UNPREY && cd $UNPREY
-
-cd $UNPREY
+mkdir -p $UNPREY && cd $UNPREY;
+cd $UNPREY;
 if [ ! -e .map.done ]; then
-	## Run BWA mem to map
-	# Discard any reads that are orphans of a pair, so keep only valid pairs
-  	for f in $NOHOSTCOPY/*_primer_UNMap_BatME.markdup.fastq.gz 
+	for f in $NOHOSTCOPY/*_primer_UNMap_BatME.markdup.fastq.gz 
   		do
-    		bn=$(basename $f _primer_noAdap.collapsed.gz)
+    		bn=$(basename $f _primer_noAdap.collapsed.gz);
     		# Run bwa mem and then sort then sort the bam by coordinates.
 		# M: mark shorter split hits as secondary
-    		echo "(bwa mem -M $COWGENOME $f | samtools view -b -| samtools sort - -o ${bn}_MapCow_UNMapBat.markdup.bam ; samtools view -b -f 4 $UNPREY/${bn}_MapCow_UNMapBat.markdup.bam > $UNPREY/${bn}_Map_UNMapBatCow.markdup.bam; bedtools bamtofastq -i $UNPREY/${bn}_Map_UNMapBatCow.markdup.bam -fq $UNPREY/${bn}_Map_UNMapBatCow.markdup.fastq; gzip $UNPREY/${bn}_Map_UNMapBatCow.markdup.fastq; bwa mem -M $PIGGENOME $UNPREY/${bn}_Map_UNMapBatCow.markdup.fastq.gz | samtools view -b -| samtools sort - -o ${bn}_MapPig_UNMapBatCow.markdup.bam; samtools view -b -f 4 $UNPREY/${bn}_MapPig_UNMapBatCow.markdup.bam > $UNPREY/${bn}_Map_UNMapBatCowPig.markdup.bam; bedtools bamtofastq -i $UNPREY/${bn}_Map_UNMapBatCowPig.markdup.bam -fq $UNPREY/${bn}_Map_UNMapBatCowPig.markdup.fastq; gzip $UNPREY/${bn}_Map_UNMapBatCowPig.markdup.fastq; bwa mem -M $SHEEPGENOME $UNPREY/${bn}_Map_UNMapBatCowPig.markdup.fastq.gz | samtools view -b -| samtools sort - -o ${bn}_MapSheep_UNMapBatCowPig.markdup.bam; samtools view -b -f 4 $UNPREY/${bn}_MapSheep_UNMapBatCowPig.markdup.bam > $UNPREY/${bn}_Map_UNMapBatCowPigSheep.markdup.bam; bedtools bamtofastq -i $UNPREY/${bn}_Map_UNMapBatCowPigSheep.markdup.bam -fq $UNPREY/${bn}_Map_UNMapBatCowPigSheep.markdup.fastq; gzip  $UNPREY/${bn}_Map_UNMapBatCowPigSheep.markdup.fastq; bwa mem -M $DONKEYGENOME $UNPREY/${bn}_Map_UNMapBatCowPigSheep.markdup.fastq.gz | samtools view -b -| samtools sort - -o ${bn}_MapDonkey_UNMapBatCowPigSheep.markdup.bam; samtools view -b -f 4 $UNPREY/${bn}_MapDonkey_UNMapBatCowPigSheep.markdup.bam > $UNPREY/${bn}_Map_UNMapBatCowPigSheepDonkey.markdup.bam; bedtools bamtofastq -i $UNPREY/${bn}_Map_UNMapBatCowPigSheepDonkey.markdup.bam -fq $UNPREY/${bn}_Map_UNMapBatCowPigSheepDonkey.markdup.fastq; gzip $UNPREY/${bn}_Map_UNMapBatCowPigSheepDonkey.markdup.fastq; bwa mem -M $HORSEGENOME $UNPREY/${bn}_Map_UNMapBatCowPigSheepDonkey.markdup.fastq.gz | samtools view -b -| samtools sort - -o ${bn}_MapHorse_UNMapBatCowPigSheepDonkey.markdup.bam; samtools view -b -f 4 $UNPREY/${bn}_MapHorse_UNMapBatCowPigSheepDonkey.markdup.bam > $UNPREY/${bn}_Map_UNMapBatCowPigSheepDonkeyHorse.markdup.bam; bedtools bamtofastq -i $UNPREY/${bn}_Map_UNMapBatCowPigSheepDonkeyHorse.markdup.bam -fq $UNPREY/${bn}_Map_UNMapBatCowPigSheepDonkeyHorse.markdup.fastq; gzip  $UNPREY/${bn}_Map_UNMapBatCowPigSheepDonkeyHorse.markdup.fastq; bwa mem -M $CHICKENGENOME $UNPREY/${bn}_Map_UNMapBatCowPigSheepDonkeyHorse.markdup.fastq.gz | samtools view -b -| samtools sort - -o ${bn}_MapChicken_UNMapBatCowPigSheepDonkeyHorse.markdup.bam; samtools view -b -f 4 $UNPREY/${bn}_MapChicken_UNMapBatCowPigSheepDonkeyHorse.markdup.bam > $UNPREY/${bn}_Map_UNMapBatCowPigSheepDonkeyHorseChicken.markdup.bam; bedtools bamtofastq -i $UNPREY/${bn}_Map_UNMapBatCowPigSheepDonkeyHorseChicken.markdup.bam -fq $UNPREY/${bn}_Map_UNMapBatCowPigSheepDonkeyHorseChicken.markdup.fastq; gzip  $UNPREY/${bn}_Map_UNMapBatCowPigSheepDonkeyHorseChicken.markdup.fastq; bwa mem -M $RHINOGENOME $UNPREY/${bn}_Map_UNMapBatCowPigSheepDonkeyHorseChicken.markdup.fastq.gz | samtools view -b -| samtools sort - -o ${bn}_MapRhino_UNMapBatCowPigSheepDonkeyHorseChicken.markdup.bam; samtools view -b -f 4 $UNPREY/${bn}_MapRhino_UNMapBatCowPigSheepDonkeyHorseChicken.markdup.bam > $UNPREY/${bn}_Map_UNMapBatCowPigSheepDonkeyHorseChickenRhino.markdup.bam; bedtools bamtofastq -i $UNPREY/${bn}_Map_UNMapBatCowPigSheepDonkeyHorseChickenRhino.markdup.bam -fq $UNPREY/${bn}_Map_UNMapBatCowPigSheepDonkeyHorseChickenRhino.markdup.fastq; gzip  $UNPREY/${bn}_Map_UNMapBatCowPigSheepDonkeyHorseChickenRhino.markdup.fastq)"
+    		echo "(bwa mem -M $COWGENOME $f | samtools view -b -| samtools sort - -o ${bn}_MapCow_UNMapBat.markdup.bam ; samtools view -b -f 4 $UNPREY/${bn}_MapCow_UNMapBat.markdup.bam > $UNPREY/${bn}_Map_UNMapBatCow.markdup.bam; bedtools bamtofastq -i $UNPREY/${bn}_Map_UNMapBatCow.markdup.bam -fq $UNPREY/${bn}_Map_UNMapBatCow.markdup.fastq; gzip $UNPREY/${bn}_Map_UNMapBatCow.markdup.fastq; bwa mem -M $PIGGENOME $UNPREY/${bn}_Map_UNMapBatCow.markdup.fastq.gz | samtools view -b -| samtools sort - -o ${bn}_MapPig_UNMapBatCow.markdup.bam; samtools view -b -f 4 $UNPREY/${bn}_MapPig_UNMapBatCow.markdup.bam > $UNPREY/${bn}_Map_UNMapBatCowPig.markdup.bam; bedtools bamtofastq -i $UNPREY/${bn}_Map_UNMapBatCowPig.markdup.bam -fq $UNPREY/${bn}_Map_UNMapBatCowPig.markdup.fastq; gzip $UNPREY/${bn}_Map_UNMapBatCowPig.markdup.fastq; bwa mem -M $SHEEPGENOME $UNPREY/${bn}_Map_UNMapBatCowPig.markdup.fastq.gz | samtools view -b -| samtools sort - -o ${bn}_MapSheep_UNMapBatCowPig.markdup.bam; samtools view -b -f 4 $UNPREY/${bn}_MapSheep_UNMapBatCowPig.markdup.bam > $UNPREY/${bn}_Map_UNMapBatCowPigSheep.markdup.bam; bedtools bamtofastq -i $UNPREY/${bn}_Map_UNMapBatCowPigSheep.markdup.bam -fq $UNPREY/${bn}_Map_UNMapBatCowPigSheep.markdup.fastq; gzip  $UNPREY/${bn}_Map_UNMapBatCowPigSheep.markdup.fastq; bwa mem -M $DONKEYGENOME $UNPREY/${bn}_Map_UNMapBatCowPigSheep.markdup.fastq.gz | samtools view -b -| samtools sort - -o ${bn}_MapDonkey_UNMapBatCowPigSheep.markdup.bam; samtools view -b -f 4 $UNPREY/${bn}_MapDonkey_UNMapBatCowPigSheep.markdup.bam > $UNPREY/${bn}_Map_UNMapBatCowPigSheepDonkey.markdup.bam; bedtools bamtofastq -i $UNPREY/${bn}_Map_UNMapBatCowPigSheepDonkey.markdup.bam -fq $UNPREY/${bn}_Map_UNMapBatCowPigSheepDonkey.markdup.fastq; gzip $UNPREY/${bn}_Map_UNMapBatCowPigSheepDonkey.markdup.fastq; bwa mem -M $HORSEGENOME $UNPREY/${bn}_Map_UNMapBatCowPigSheepDonkey.markdup.fastq.gz | samtools view -b -| samtools sort - -o ${bn}_MapHorse_UNMapBatCowPigSheepDonkey.markdup.bam; samtools view -b -f 4 $UNPREY/${bn}_MapHorse_UNMapBatCowPigSheepDonkey.markdup.bam > $UNPREY/${bn}_Map_UNMapBatCowPigSheepDonkeyHorse.markdup.bam; bedtools bamtofastq -i $UNPREY/${bn}_Map_UNMapBatCowPigSheepDonkeyHorse.markdup.bam -fq $UNPREY/${bn}_Map_UNMapBatCowPigSheepDonkeyHorse.markdup.fastq; gzip  $UNPREY/${bn}_Map_UNMapBatCowPigSheepDonkeyHorse.markdup.fastq; bwa mem -M $CHICKENGENOME $UNPREY/${bn}_Map_UNMapBatCowPigSheepDonkeyHorse.markdup.fastq.gz | samtools view -b -| samtools sort - -o ${bn}_MapChicken_UNMapBatCowPigSheepDonkeyHorse.markdup.bam; samtools view -b -f 4 $UNPREY/${bn}_MapChicken_UNMapBatCowPigSheepDonkeyHorse.markdup.bam > $UNPREY/${bn}_Map_UNMapBatCowPigSheepDonkeyHorseChicken.markdup.bam; bedtools bamtofastq -i $UNPREY/${bn}_Map_UNMapBatCowPigSheepDonkeyHorseChicken.markdup.bam -fq $UNPREY/${bn}_Map_UNMapBatCowPigSheepDonkeyHorseChicken.markdup.fastq; gzip  $UNPREY/${bn}_Map_UNMapBatCowPigSheepDonkeyHorseChicken.markdup.fastq; bwa mem -M $RHINOGENOME $UNPREY/${bn}_Map_UNMapBatCowPigSheepDonkeyHorseChicken.markdup.fastq.gz | samtools view -b -| samtools sort - -o ${bn}_MapRhino_UNMapBatCowPigSheepDonkeyHorseChicken.markdup.bam; samtools view -b -f 4 $UNPREY/${bn}_MapRhino_UNMapBatCowPigSheepDonkeyHorseChicken.markdup.bam > $UNPREY/${bn}_Map_UNMapBatCowPigSheepDonkeyHorseChickenRhino.markdup.bam; bedtools bamtofastq -i $UNPREY/${bn}_Map_UNMapBatCowPigSheepDonkeyHorseChickenRhino.markdup.bam -fq $UNPREY/${bn}_Map_UNMapBatCowPigSheepDonkeyHorseChickenRhino.markdup.fastq; gzip  $UNPREY/${bn}_Map_UNMapBatCowPigSheepDonkeyHorseChickenRhino.markdup.fastq)";
   	done | xsbatch -c 1 --mem-per-cpu=70G -J recover -R --max-array-jobs=10 --
   touch .map.done
 fi
@@ -478,6 +480,9 @@ fi
 # -minimum-base-quality 35
 # generate report 
 
+
+UNPREY2=/groups/hologenomics/sarai/data/batProject/unpreys_2
+
 KRAKEN2V3R=$PROJECT/kraken2_k35Report
 echo "Running kraken"
 # -p: no error if existing 
@@ -487,12 +492,12 @@ mkdir -p $KRAKEN2V3R && cd $KRAKEN2V3R
 if [ ! -e .kraken ]; then
 	## Run BWA mem to map
 	# Discard any reads that are orphans of a pair, so keep only valid pairs
-  	for f in $UNPREY/*_primer_UNMap_BatME.markdup.fastq.gz_Map_UNMapBatCowPigSheepDonkeyHorseChickenRhino.markdup.fastq.gz
+  	for f in $UNPREY2/*_primer_UNMap_BatME.markdup.fastq.gz_Map_UNMapBatCowPigSheepDonkeyHorseChickenRhino.markdup.fastq.gz
   		do
     		bn=$(basename $f _primer_UNMap_BatME.markdup.fastq.gz_Map_UNMapBatCowPigSheepDonkeyHorseChickenRhino.markdup.fastq.gz)
     		# Run kraken, report, mpa report
-    		echo "(gunzip $f; kraken2 --db $KRAKEN2DB --threads 8 --preload --minimum-base-quality 35 --unclassified-out $KRAKEN2V3R/${bn}.unclassified.kraken.fastq --report $KRAKEN2V3R/${bn}.report.kraken --output $KRAKEN2V3R/${bn}.kraken $UNPREY/${bn}_primer_UNMap_BatME.markdup.fastq.gz_Map_UNMapBatCowPigSheepDonkeyHorseChickenRhino.markdup.fastq; gzip  $UNPREY/${bn}_primer_UNMap_BatME.markdup.fastq.gz_Map_UNMapBatCowPigSheepDonkeyHorseChickenRhino.markdup.fastq)"
-  	done | xsbatch -c 1 --mem-per-cpu=30G -J kraken -R --max-array-jobs=10 --
+    		echo "(gunzip $f; kraken2 --db $KRAKEN2DB --threads 8 --preload --minimum-base-quality 35 --unclassified-out $KRAKEN2V3R/${bn}.unclassified.kraken.fastq --report $KRAKEN2V3R/${bn}.report.kraken --output $KRAKEN2V3R/${bn}.kraken $UNPREY2/${bn}_primer_UNMap_BatME.markdup.fastq.gz_Map_UNMapBatCowPigSheepDonkeyHorseChickenRhino.markdup.fastq; gzip  $UNPREY2/${bn}_primer_UNMap_BatME.markdup.fastq.gz_Map_UNMapBatCowPigSheepDonkeyHorseChickenRhino.markdup.fastq)"
+  	done | xsbatch -c 1 --mem-per-cpu=40G -J kraken -R --max-array-jobs=10 --
   touch .kraken
 fi
 
@@ -535,5 +540,6 @@ base=`basename $file .kraken`
 echo "ktImportTaxonomy -q 2 -t 3 ${file} -o ${base}_kraken_krona.html"
 #echo ${file}
 done
+
 
 
